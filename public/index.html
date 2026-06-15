@@ -560,25 +560,28 @@ document.getElementById('its-input').addEventListener('keydown', e => {
         for (const record of message.records) {
           try {
             let text = '';
-            const bytes = new Uint8Array(record.data.buffer, record.data.byteOffset, record.data.byteLength);
 
-            if (record.recordType === 'text') {
-              const statusByte = bytes[0];
-              const isUTF16   = !!(statusByte & 0x80);
-              const langLen   = statusByte & 0x3F;
-              const textBytes = bytes.slice(1 + langLen);
-              text = new TextDecoder(isUTF16 ? 'utf-16' : 'utf-8').decode(textBytes);
-            } else {
-              text = new TextDecoder('utf-8').decode(bytes);
+            if (record.recordType === 'url' || record.recordType === 'absolute-url') {
+              text = record.toURL ? record.toURL() : '';
+            } else if (record.data) {
+              const bytes = new Uint8Array(record.data.buffer, record.data.byteOffset, record.data.byteLength);
+              if (record.recordType === 'text') {
+                const statusByte = bytes[0];
+                const isUTF16   = !!(statusByte & 0x80);
+                const langLen   = statusByte & 0x3F;
+                const textBytes = bytes.slice(1 + langLen);
+                text = new TextDecoder(isUTF16 ? 'utf-16' : 'utf-8').decode(textBytes);
+              } else {
+                text = new TextDecoder('utf-8').decode(bytes);
+              }
             }
 
             debugLines.push(`[${record.recordType}] "${text.trim()}"`);
 
-            // match any 8-digit sequence (standalone or embedded)
             const match = text.match(/(\d{8})/);
             if (match) { foundITS = match[1]; break; }
           } catch (err) {
-            debugLines.push(`[error] ${err.message}`);
+            debugLines.push(`[error:${record.recordType}] ${err.message}`);
           }
         }
 
