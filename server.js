@@ -1,49 +1,38 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL || '';
-const DATA_FILE = path.join(__dirname, 'data', 'scans.json');
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-function loadScans() {
-  try {
-    if (!fs.existsSync(DATA_FILE)) return [];
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-  } catch {
-    return [];
-  }
+async function sheetsGet(params) {
+  const url = new URL(GOOGLE_SCRIPT_URL);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString(), { redirect: 'follow' });
+  return res.json();
 }
 
-function saveScans(scans) {
-  const dir = path.dirname(DATA_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(scans, null, 2), 'utf8');
-}
-
-async function forwardToSheets(data) {
-  if (!GOOGLE_SCRIPT_URL) return;
-  try {
-    await fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-      redirect: 'follow',
-    });
-  } catch (e) {
-    console.error('Google Sheets sync failed:', e.message);
-  }
+async function sheetsPost(data) {
+  await fetch(GOOGLE_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    redirect: 'follow',
+  });
 }
 
 // POST /api/scan
 app.post('/api/scan', async (req, res) => {
+  if (!GOOGLE_SCRIPT_URL) {
+    return res.status(503).json({ error: 'GOOGLE_SCRIPT_URL not configured' });
+  }
+
   const { its, day, hijriDate, gregDate, time, method } = req.body;
 
   if (!its || !/^\d{8}$/.test(its)) {
@@ -54,10 +43,9 @@ app.post('/api/scan', async (req, res) => {
     return res.status(400).json({ error: 'Invalid day (1–9)' });
   }
 
-  const scans = loadScans();
-  const existing = scans.find(s => s.its === its && s.day === dayNum);
-  if (existing) {
-    return res.json({ duplicate: true, firstScanTime: existing.time });
+  const dupCheck = await sheetsGet({ action: 'checkDuplicate', its, day: dayNum });
+  if (dupCheck.duplicate) {
+    return res.json({ duplicate: true, firstScanTime: dupCheck.firstScanTime });
   }
 
   const entry = {
@@ -67,32 +55,27 @@ app.post('/api/scan', async (req, res) => {
     gregDate: gregDate || '',
     time: time || new Date().toLocaleTimeString('en-GB'),
     method: method || 'Manual',
-    createdAt: new Date().toISOString(),
   };
 
-  scans.push(entry);
-  saveScans(scans);
-
-  // Fire-and-forget — don't block response on Sheets sync
-  forwardToSheets(entry).catch(e => console.error('Sheets sync error:', e.message));
-
+  await sheetsPost(entry);
   res.json({ success: true, entry });
 });
 
 // GET /api/scans?day=N
-app.get('/api/scans', (req, res) => {
-  const day = req.query.day ? parseInt(req.query.day) : null;
-  const scans = loadScans();
-  res.json(day ? scans.filter(s => s.day === day) : scans);
+app.get('/api/scans', async (req, res) => {
+  if (!GOOGLE_SCRIPT_URL) return res.json([]);
+  const params = { action: 'scans' };
+  if (req.query.day) params.day = req.query.day;
+  const scans = await sheetsGet(params);
+  res.json(scans);
 });
 
 // GET /api/stats
-app.get('/api/stats', (req, res) => {
-  const scans = loadScans();
-  const stats = {};
-  for (let i = 1; i <= 9; i++) {
-    stats[`day${i}`] = scans.filter(s => s.day === i).length;
+app.get('/api/stats', async (req, res) => {
+  if (!GOOGLE_SCRIPT_URL) {
+    return res.json({ day1:0,day2:0,day3:0,day4:0,day5:0,day6:0,day7:0,day8:0,day9:0 });
   }
+  const stats = await sheetsGet({ action: 'stats' });
   res.json(stats);
 });
 
