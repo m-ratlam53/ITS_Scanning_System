@@ -119,28 +119,6 @@
     }
     .btn:active { opacity: 0.82; }
 
-    .btn-nfc {
-      background: var(--green);
-      color: #fff;
-      font-size: 1.05rem;
-      letter-spacing: 0.01em;
-    }
-    .btn-nfc.scanning {
-      background: var(--green-dark);
-    }
-    .btn-nfc:disabled {
-      background: #999;
-      cursor: default;
-      opacity: 1;
-    }
-
-    #nfc-msg {
-      margin-top: 7px;
-      font-size: 0.82rem;
-      color: var(--muted);
-      min-height: 18px;
-    }
-
     /* ── MANUAL ENTRY ───────────────────────────────────── */
     .entry-row {
       display: flex;
@@ -284,13 +262,6 @@
     <div class="day-grid" id="day-grid"></div>
   </section>
 
-  <!-- NFC -->
-  <section class="section">
-    <div class="section-label">NFC Card Scan</div>
-    <button class="btn btn-nfc" id="nfc-btn">Tap ITS Card (NFC)</button>
-    <div id="nfc-msg"></div>
-  </section>
-
   <!-- MANUAL ENTRY -->
   <section class="section">
     <div class="section-label">Manual Entry</div>
@@ -360,8 +331,6 @@ const DAYS = [
 let selectedDay  = 1;
 let stats        = {};
 let recentScans  = [];
-let nfcActive    = false;
-let nfcReader    = null;
 let toastTimer   = null;
 
 // ── HELPERS ───────────────────────────────────────────────────────────────
@@ -469,7 +438,8 @@ function showToast(msg, type) {
 }
 
 // ── SUBMIT ────────────────────────────────────────────────────────────────
-async function submitScan(its, method) {
+async function submitScan(its) {
+  const method = 'Manual';
   if (!/^\d{8}$/.test(its)) {
     showToast('✗ ITS must be exactly 8 digits', 'error');
     return;
@@ -516,102 +486,12 @@ async function submitScan(its, method) {
 
 // ── MANUAL ENTRY ──────────────────────────────────────────────────────────
 document.getElementById('submit-btn').addEventListener('click', () => {
-  submitScan(document.getElementById('its-input').value.trim(), 'Manual');
+  submitScan(document.getElementById('its-input').value.trim());
 });
 document.getElementById('its-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') submitScan(e.target.value.trim(), 'Manual');
+  if (e.key === 'Enter') submitScan(e.target.value.trim());
 });
 
-// ── NFC ───────────────────────────────────────────────────────────────────
-(function setupNFC() {
-  const btn = document.getElementById('nfc-btn');
-  const msg = document.getElementById('nfc-msg');
-
-  if (!('NDEFReader' in window)) {
-    btn.disabled = true;
-    btn.textContent = 'NFC Not Available';
-    msg.textContent = 'NFC not supported — use manual entry. (Requires Chrome on Android over HTTPS)';
-    return;
-  }
-
-  btn.addEventListener('click', async () => {
-    if (nfcActive) {
-      try { if (nfcReader) nfcReader.stop(); } catch {}
-      nfcReader = null;
-      nfcActive = false;
-      btn.textContent = 'Tap ITS Card (NFC)';
-      btn.classList.remove('scanning');
-      msg.textContent = '';
-      return;
-    }
-
-    try {
-      nfcReader = new NDEFReader();
-      await nfcReader.scan();
-      nfcActive = true;
-      btn.textContent = '⏹ Stop NFC — listening…';
-      btn.classList.add('scanning');
-      msg.textContent = 'Ready — tap an ITS card to the back of the phone';
-
-      nfcReader.addEventListener('reading', ({ message, serialNumber }) => {
-        let foundITS = null;
-        const debugLines = [];
-        if (serialNumber) debugLines.push(`[uid] "${serialNumber}"`);
-
-        for (const record of message.records) {
-          try {
-            let text = '';
-
-            if (record.recordType === 'url' || record.recordType === 'absolute-url') {
-              text = record.toURL ? record.toURL() : '';
-            } else if (record.data) {
-              const bytes = new Uint8Array(record.data.buffer, record.data.byteOffset, record.data.byteLength);
-              if (record.recordType === 'text') {
-                const statusByte = bytes[0];
-                const isUTF16   = !!(statusByte & 0x80);
-                const langLen   = statusByte & 0x3F;
-                const textBytes = bytes.slice(1 + langLen);
-                text = new TextDecoder(isUTF16 ? 'utf-16' : 'utf-8').decode(textBytes);
-              } else {
-                text = new TextDecoder('utf-8').decode(bytes);
-              }
-            }
-
-            debugLines.push(`[${record.recordType}] "${text.trim()}"`);
-
-            const match = text.match(/(\d{8})/);
-            if (match) { foundITS = match[1]; break; }
-          } catch (err) {
-            debugLines.push(`[error:${record.recordType}] ${err.message}`);
-          }
-        }
-
-        // fallback: try extracting 8 digits from serial number
-        if (!foundITS && serialNumber) {
-          const digits = serialNumber.replace(/[^0-9]/g, '');
-          if (digits.length === 8) foundITS = digits;
-        }
-
-        if (foundITS) {
-          msg.textContent = `Read: ${foundITS}`;
-          submitScan(foundITS, 'NFC');
-        } else {
-          msg.textContent = 'Card read — raw data: ' + (debugLines.join(' | ') || 'empty');
-        }
-      });
-
-      nfcReader.addEventListener('readingerror', () => {
-        msg.textContent = 'Read error — try again';
-      });
-
-    } catch (e) {
-      msg.textContent = `NFC error: ${e.message}`;
-      nfcActive = false;
-      btn.textContent = 'Tap ITS Card (NFC)';
-      btn.classList.remove('scanning');
-    }
-  });
-})();
 
 // ── BOOT ──────────────────────────────────────────────────────────────────
 (function init() {
