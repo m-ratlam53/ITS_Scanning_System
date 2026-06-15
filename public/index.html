@@ -555,6 +555,7 @@ document.getElementById('its-input').addEventListener('keydown', e => {
 
       nfcReader.addEventListener('reading', ({ message }) => {
         let foundITS = null;
+        const debugLines = [];
 
         for (const record of message.records) {
           try {
@@ -562,7 +563,6 @@ document.getElementById('its-input').addEventListener('keydown', e => {
             const bytes = new Uint8Array(record.data.buffer, record.data.byteOffset, record.data.byteLength);
 
             if (record.recordType === 'text') {
-              // NDEF text record: [status byte][lang bytes][utf8/utf16 text]
               const statusByte = bytes[0];
               const isUTF16   = !!(statusByte & 0x80);
               const langLen   = statusByte & 0x3F;
@@ -572,16 +572,21 @@ document.getElementById('its-input').addEventListener('keydown', e => {
               text = new TextDecoder('utf-8').decode(bytes);
             }
 
-            const match = text.match(/\b(\d{8})\b/);
+            debugLines.push(`[${record.recordType}] "${text.trim()}"`);
+
+            // match any 8-digit sequence (standalone or embedded)
+            const match = text.match(/(\d{8})/);
             if (match) { foundITS = match[1]; break; }
-          } catch {}
+          } catch (err) {
+            debugLines.push(`[error] ${err.message}`);
+          }
         }
 
         if (foundITS) {
           msg.textContent = `Read: ${foundITS}`;
           submitScan(foundITS, 'NFC');
         } else {
-          msg.textContent = 'Card read — no 8-digit ITS number found';
+          msg.textContent = 'Card read — raw data: ' + (debugLines.join(' | ') || 'empty');
         }
       });
 
