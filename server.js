@@ -19,12 +19,13 @@ async function sheetsGet(params) {
 }
 
 async function sheetsPost(data) {
-  await fetch(GOOGLE_SCRIPT_URL, {
+  const res = await fetch(GOOGLE_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
     redirect: 'follow',
   });
+  return res.json();
 }
 
 // POST /api/scan
@@ -43,11 +44,6 @@ app.post('/api/scan', async (req, res) => {
     return res.status(400).json({ error: 'Invalid day (1–9)' });
   }
 
-  const dupCheck = await sheetsGet({ action: 'checkDuplicate', its, day: dayNum });
-  if (dupCheck.duplicate) {
-    return res.json({ duplicate: true, firstScanTime: dupCheck.firstScanTime });
-  }
-
   const entry = {
     its,
     day: dayNum,
@@ -57,7 +53,10 @@ app.post('/api/scan', async (req, res) => {
     method: method || 'Manual',
   };
 
-  await sheetsPost(entry);
+  const result = await sheetsPost(entry);
+  if (result.duplicate) {
+    return res.json({ duplicate: true, firstScanTime: result.firstScanTime });
+  }
   res.json({ success: true, entry });
 });
 
