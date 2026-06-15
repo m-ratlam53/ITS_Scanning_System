@@ -553,9 +553,10 @@ document.getElementById('its-input').addEventListener('keydown', e => {
       btn.classList.add('scanning');
       msg.textContent = 'Ready — tap an ITS card to the back of the phone';
 
-      nfcReader.addEventListener('reading', ({ message }) => {
+      nfcReader.addEventListener('reading', ({ message, serialNumber }) => {
         let foundITS = null;
         const debugLines = [];
+        if (serialNumber) debugLines.push(`[uid] "${serialNumber}"`);
 
         for (const record of message.records) {
           try {
@@ -583,6 +584,12 @@ document.getElementById('its-input').addEventListener('keydown', e => {
           } catch (err) {
             debugLines.push(`[error:${record.recordType}] ${err.message}`);
           }
+        }
+
+        // fallback: try extracting 8 digits from serial number
+        if (!foundITS && serialNumber) {
+          const digits = serialNumber.replace(/[^0-9]/g, '');
+          if (digits.length === 8) foundITS = digits;
         }
 
         if (foundITS) {
