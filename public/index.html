@@ -194,24 +194,6 @@
     }
     tbody tr:last-child td { border-bottom: none; }
     .its-col { font-family: monospace; font-size: 1rem; letter-spacing: 0.05em; }
-    .nfc-badge {
-      display: inline-block;
-      background: var(--green-bg);
-      color: var(--green);
-      font-size: 0.72rem;
-      font-weight: 700;
-      padding: 2px 7px;
-      border-radius: 3px;
-    }
-    .manual-badge {
-      display: inline-block;
-      background: #f0f0f0;
-      color: var(--muted);
-      font-size: 0.72rem;
-      font-weight: 600;
-      padding: 2px 7px;
-      border-radius: 3px;
-    }
     .empty-row td {
       text-align: center;
       padding: 24px;
@@ -295,11 +277,10 @@
           <tr>
             <th>ITS Number</th>
             <th>Time</th>
-            <th>Method</th>
           </tr>
         </thead>
         <tbody id="scans-tbody">
-          <tr class="empty-row"><td colspan="3">No scans yet today</td></tr>
+          <tr class="empty-row"><td colspan="2">No scans yet today</td></tr>
         </tbody>
       </table>
     </div>
@@ -412,18 +393,14 @@ function renderTable() {
   tbody.innerHTML = '';
   const rows = recentScans.slice(0, 50);
   if (rows.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="3">No scans yet today</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="2">No scans yet today</td></tr>';
     return;
   }
   rows.forEach(s => {
     const tr = document.createElement('tr');
-    const badge = s.method === 'NFC'
-      ? `<span class="nfc-badge">NFC</span>`
-      : `<span class="manual-badge">Manual</span>`;
     tr.innerHTML =
       `<td class="its-col">${s.its}</td>` +
-      `<td>${s.time || ''}</td>` +
-      `<td>${badge}</td>`;
+      `<td>${s.time || ''}</td>`;
     tbody.appendChild(tr);
   });
 }
