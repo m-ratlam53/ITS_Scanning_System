@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1a5c38" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Ashara 1448 · ITS Scanner</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:      #1a5c38;
+      --green-dark: #0f3d25;
+      --green-bg:   #eaf3ed;
+      --text:       #111;
+      --muted:      #555;
+      --border:     #d0d0d0;
+      --ok-bg:      #d1fae5;
+      --ok-text:    #065f46;
+      --ok-border:  #34d399;
+      --warn-bg:    #fef9c3;
+      --warn-text:  #854d0e;
+      --warn-border:#fbbf24;
+      --err-bg:     #fee2e2;
+      --err-text:   #991b1b;
+      --err-border: #f87171;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #fff;
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 0 16px 96px;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────── */
+    header {
+      padding: 20px 0 14px;
+      border-bottom: 3px solid var(--green);
+      margin-bottom: 24px;
+    }
+    header h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--green);
+      letter-spacing: -0.01em;
+    }
+    #header-date {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    /* ── SECTION ────────────────────────────────────────── */
+    .section { margin-bottom: 26px; }
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    /* ── DAY GRID ───────────────────────────────────────── */
+    .day-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .day-btn {
+      border: 2px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 10px 4px;
+      cursor: pointer;
+      text-align: center;
+      min-height: 70px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .day-btn:active { opacity: 0.75; }
+    .day-btn.active {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+    }
+    .day-num  { font-size: 0.875rem; font-weight: 700; }
+    .day-hijri{ font-size: 0.68rem;  opacity: 0.85; }
+    .day-greg { font-size: 0.68rem;  opacity: 0.7; }
+
+    /* ── BUTTONS ────────────────────────────────────────── */
+    .btn {
+      display: block;
+      width: 100%;
+      min-height: 54px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { opacity: 0.82; }
+
+    .btn-nfc {
+      background: var(--green);
+      color: #fff;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+    }
+    .btn-nfc.scanning {
+      background: var(--green-dark);
+    }
+    .btn-nfc:disabled {
+      background: #999;
+      cursor: default;
+      opacity: 1;
+    }
+
+    #nfc-msg {
+      margin-top: 7px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      min-height: 18px;
+    }
+
+    /* ── MANUAL ENTRY ───────────────────────────────────── */
+    .entry-row {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    #its-input {
+      flex: 1;
+      min-height: 54px;
+      padding: 0 14px;
+      font-size: 1.4rem;
+      font-family: monospace;
+      letter-spacing: 0.18em;
+      text-align: center;
+      border: 2px solid var(--border);
+      border-radius: 6px;
+      outline: none;
+      background: #fff;
+      color: var(--text);
+    }
+    #its-input:focus { border-color: var(--green); }
+
+    #submit-btn {
+      min-width: 90px;
+      width: auto;
+      background: var(--green);
+      color: #fff;
+      padding: 0 20px;
+      font-size: 1rem;
+    }
+
+    /* ── STATS BAR ──────────────────────────────────────── */
+    #stats-bar {
+      background: var(--green-bg);
+      border-left: 4px solid var(--green);
+      padding: 13px 16px;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--green);
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* ── RECENT SCANS ───────────────────────────────────── */
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    thead th {
+      background: #f6f6f6;
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #ebebeb;
+      vertical-align: middle;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    .its-col { font-family: monospace; font-size: 1rem; letter-spacing: 0.05em; }
+    .nfc-badge {
+      display: inline-block;
+      background: var(--green-bg);
+      color: var(--green);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 3px;
+    }
+    .manual-badge {
+      display: inline-block;
+      background: #f0f0f0;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 3px;
+    }
+    .empty-row td {
+      text-align: center;
+      padding: 24px;
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+
+    /* ── TOAST ──────────────────────────────────────────── */
+    #toast {
+      position: sticky;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      border-top: 2px solid transparent;
+      border-radius: 0;
+      transition: opacity 0.25s ease;
+      z-index: 100;
+      margin: 0 -16px;
+    }
+    #toast.hidden   { opacity: 0; pointer-events: none; }
+    #toast.success  { background: var(--ok-bg);   color: var(--ok-text);   border-color: var(--ok-border); }
+    #toast.warning  { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-border); }
+    #toast.error    { background: var(--err-bg);  color: var(--err-text);  border-color: var(--err-border); }
+
+    /* ── RESPONSIVE ─────────────────────────────────────── */
+    @media (max-width: 380px) {
+      header h1 { font-size: 1.05rem; }
+      .day-hijri, .day-greg { display: none; }
+      .day-btn { min-height: 52px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <h1>Ashara 1448 · ITS Scanner</h1>
+    <div id="header-date"></div>
+  </header>
+
+  <!-- DAY SELECTOR -->
+  <section class="section">
+    <div class="section-label">Select Day</div>
+    <div class="day-grid" id="day-grid"></div>
+  </section>
+
+  <!-- NFC -->
+  <section class="section">
+    <div class="section-label">NFC Card Scan</div>
+    <button class="btn btn-nfc" id="nfc-btn">Tap ITS Card (NFC)</button>
+    <div id="nfc-msg"></div>
+  </section>
+
+  <!-- MANUAL ENTRY -->
+  <section class="section">
+    <div class="section-label">Manual Entry</div>
+    <div class="entry-row">
+      <input
+        type="text"
+        id="its-input"
+        inputmode="numeric"
+        maxlength="8"
+        pattern="\d{8}"
+        placeholder="12345678"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+      />
+      <button class="btn" id="submit-btn">Submit</button>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="section">
+    <div id="stats-bar">Loading…</div>
+  </section>
+
+  <!-- RECENT SCANS -->
+  <section class="section">
+    <div class="section-label">Recent Scans — Today</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ITS Number</th>
+            <th>Time</th>
+            <th>Method</th>
+          </tr>
+        </thead>
+        <tbody id="scans-tbody">
+          <tr class="empty-row"><td colspan="3">No scans yet today</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- TOAST (sticky bottom) -->
+  <div id="toast" class="hidden"></div>
+
+</div>
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────
+// Empty string = relative URLs — frontend is served by the same Express server
+const API_BASE = '';
+
+// ── DAYS DATA (hardcoded — do not change) ────────────────────────────────
+const DAYS = [
+  { day: 1, hijri: '2nd Muharram',  gregShort: '16 Jun', gregFull: '16 Jun 2026', iso: '2026-06-16' },
+  { day: 2, hijri: '3rd Muharram',  gregShort: '17 Jun', gregFull: '17 Jun 2026', iso: '2026-06-17' },
+  { day: 3, hijri: '4th Muharram',  gregShort: '18 Jun', gregFull: '18 Jun 2026', iso: '2026-06-18' },
+  { day: 4, hijri: '5th Muharram',  gregShort: '19 Jun', gregFull: '19 Jun 2026', iso: '2026-06-19' },
+  { day: 5, hijri: '6th Muharram',  gregShort: '20 Jun', gregFull: '20 Jun 2026', iso: '2026-06-20' },
+  { day: 6, hijri: '7th Muharram',  gregShort: '21 Jun', gregFull: '21 Jun 2026', iso: '2026-06-21' },
+  { day: 7, hijri: '8th Muharram',  gregShort: '22 Jun', gregFull: '22 Jun 2026', iso: '2026-06-22' },
+  { day: 8, hijri: '9th Muharram',  gregShort: '23 Jun', gregFull: '23 Jun 2026', iso: '2026-06-23' },
+  { day: 9, hijri: '10th Muharram', gregShort: '24 Jun', gregFull: '24 Jun 2026', iso: '2026-06-24' },
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let selectedDay  = 1;
+let stats        = {};
+let recentScans  = [];
+let nfcActive    = false;
+let nfcReader    = null;
+let toastTimer   = null;
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+function detectToday() {
+  const iso = new Date().toISOString().slice(0, 10);
+  return DAYS.find(d => d.iso === iso) || null;
+}
+
+function dayData(n) {
+  return DAYS.find(d => d.day === n);
+}
+
+// ── HEADER ────────────────────────────────────────────────────────────────
+function renderHeader() {
+  const el  = document.getElementById('header-date');
+  const tod = detectToday();
+  if (tod) {
+    el.textContent = `Day ${tod.day} · ${tod.hijri} · ${tod.gregFull}`;
+  } else {
+    el.textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+}
+
+// ── DAY GRID ──────────────────────────────────────────────────────────────
+function renderDayGrid() {
+  const grid = document.getElementById('day-grid');
+  grid.innerHTML = '';
+  DAYS.forEach(d => {
+    const btn = document.createElement('button');
+    btn.className = 'day-btn' + (selectedDay === d.day ? ' active' : '');
+    btn.innerHTML =
+      `<span class="day-num">Day ${d.day}</span>` +
+      `<span class="day-hijri">${d.hijri}</span>` +
+      `<span class="day-greg">${d.gregShort}</span>`;
+    btn.addEventListener('click', () => selectDay(d.day));
+    grid.appendChild(btn);
+  });
+}
+
+function selectDay(n) {
+  selectedDay = n;
+  renderDayGrid();
+  renderStats();
+  loadTodayScans();
+}
+
+// ── STATS ─────────────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const r = await fetch(`${API_BASE}/api/stats`);
+    stats = await r.json();
+  } catch {
+    stats = {};
+  }
+  renderStats();
+}
+
+function renderStats() {
+  const todayCount = stats[`day${selectedDay}`] || 0;
+  const total = Object.values(stats).reduce((a, b) => a + b, 0);
+  document.getElementById('stats-bar').textContent =
+    `Today: ${todayCount} scan${todayCount !== 1 ? 's' : ''} · Total all days: ${total} scan${total !== 1 ? 's' : ''}`;
+}
+
+// ── SCANS TABLE ───────────────────────────────────────────────────────────
+async function loadTodayScans() {
+  try {
+    const r = await fetch(`${API_BASE}/api/scans?day=${selectedDay}`);
+    const data = await r.json();
+    recentScans = data.slice().reverse();
+  } catch {
+    // offline — keep existing list
+  }
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('scans-tbody');
+  tbody.innerHTML = '';
+  const rows = recentScans.slice(0, 50);
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="3">No scans yet today</td></tr>';
+    return;
+  }
+  rows.forEach(s => {
+    const tr = document.createElement('tr');
+    const badge = s.method === 'NFC'
+      ? `<span class="nfc-badge">NFC</span>`
+      : `<span class="manual-badge">Manual</span>`;
+    tr.innerHTML =
+      `<td class="its-col">${s.its}</td>` +
+      `<td>${s.time || ''}</td>` +
+      `<td>${badge}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'hidden'; }, 4000);
+}
+
+// ── SUBMIT ────────────────────────────────────────────────────────────────
+async function submitScan(its, method) {
+  if (!/^\d{8}$/.test(its)) {
+    showToast('✗ ITS must be exactly 8 digits', 'error');
+    return;
+  }
+
+  const d    = dayData(selectedDay);
+  const now  = new Date();
+  const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const payload = { its, day: selectedDay, hijriDate: d.hijri, gregDate: d.gregFull, time, method };
+
+  try {
+    const r    = await fetch(`${API_BASE}/api/scan`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    const data = await r.json();
+
+    if (data.duplicate) {
+      showToast(`⚠ Already scanned today — ITS ${its} (first scan: ${data.firstScanTime})`, 'warning');
+      return;
+    }
+
+    if (data.success) {
+      showToast(
+        `✓ ITS ${its} recorded — Day ${selectedDay}, ${d.hijri}, ${d.gregFull} · ${time}`,
+        'success'
+      );
+      recentScans.unshift({ its, time, method });
+      if (recentScans.length > 50) recentScans.pop();
+      renderTable();
+      stats[`day${selectedDay}`] = (stats[`day${selectedDay}`] || 0) + 1;
+      renderStats();
+    } else {
+      showToast('✗ Error — ' + (data.error || 'unknown'), 'error');
+    }
+  } catch {
+    showToast('✗ Error — check connection', 'error');
+  }
+
+  document.getElementById('its-input').value = '';
+}
+
+// ── MANUAL ENTRY ──────────────────────────────────────────────────────────
+document.getElementById('submit-btn').addEventListener('click', () => {
+  submitScan(document.getElementById('its-input').value.trim(), 'Manual');
+});
+document.getElementById('its-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitScan(e.target.value.trim(), 'Manual');
+});
+
+// ── NFC ───────────────────────────────────────────────────────────────────
+(function setupNFC() {
+  const btn = document.getElementById('nfc-btn');
+  const msg = document.getElementById('nfc-msg');
+
+  if (!('NDEFReader' in window)) {
+    btn.disabled = true;
+    btn.textContent = 'NFC Not Available';
+    msg.textContent = 'NFC not supported — use manual entry. (Requires Chrome on Android over HTTPS)';
+    return;
+  }
+
+  btn.addEventListener('click', async () => {
+    if (nfcActive) {
+      try { if (nfcReader) nfcReader.stop(); } catch {}
+      nfcReader = null;
+      nfcActive = false;
+      btn.textContent = 'Tap ITS Card (NFC)';
+      btn.classList.remove('scanning');
+      msg.textContent = '';
+      return;
+    }
+
+    try {
+      nfcReader = new NDEFReader();
+      await nfcReader.scan();
+      nfcActive = true;
+      btn.textContent = '⏹ Stop NFC — listening…';
+      btn.classList.add('scanning');
+      msg.textContent = 'Ready — tap an ITS card to the back of the phone';
+
+      nfcReader.addEventListener('reading', ({ message }) => {
+        let foundITS = null;
+
+        for (const record of message.records) {
+          try {
+            let text = '';
+            const bytes = new Uint8Array(record.data.buffer, record.data.byteOffset, record.data.byteLength);
+
+            if (record.recordType === 'text') {
+              // NDEF text record: [status byte][lang bytes][utf8/utf16 text]
+              const statusByte = bytes[0];
+              const isUTF16   = !!(statusByte & 0x80);
+              const langLen   = statusByte & 0x3F;
+              const textBytes = bytes.slice(1 + langLen);
+              text = new TextDecoder(isUTF16 ? 'utf-16' : 'utf-8').decode(textBytes);
+            } else {
+              text = new TextDecoder('utf-8').decode(bytes);
+            }
+
+            const match = text.match(/\b(\d{8})\b/);
+            if (match) { foundITS = match[1]; break; }
+          } catch {}
+        }
+
+        if (foundITS) {
+          msg.textContent = `Read: ${foundITS}`;
+          submitScan(foundITS, 'NFC');
+        } else {
+          msg.textContent = 'Card read — no 8-digit ITS number found';
+        }
+      });
+
+      nfcReader.addEventListener('readingerror', () => {
+        msg.textContent = 'Read error — try again';
+      });
+
+    } catch (e) {
+      msg.textContent = `NFC error: ${e.message}`;
+      nfcActive = false;
+      btn.textContent = 'Tap ITS Card (NFC)';
+      btn.classList.remove('scanning');
+    }
+  });
+})();
+
+// ── BOOT ──────────────────────────────────────────────────────────────────
+(function init() {
+  renderHeader();
+  const today = detectToday();
+  selectedDay = today ? today.day : 1;
+  renderDayGrid();
+  loadStats();
+  loadTodayScans();
+})();
+</script>
+</body>
+</html>
